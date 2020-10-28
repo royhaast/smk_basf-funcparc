@@ -162,7 +162,7 @@ rule wishart_filter:
 
 rule parcellate_tseries:
     input:
-        dtseries = rules.create_dtseries.output,
+        dtseries = rules.wishart_filter.output,
         rois = rules.create_atlas.output.cifti
     output: expand('funcparc/{{subject}}/input_parcellated/{r}.{nv}_fs_LR.ptseries.nii',nv=vtx_res,r=run)
     group: 'preprocessing'

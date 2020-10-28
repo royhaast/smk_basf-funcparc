@@ -2,12 +2,13 @@ from os.path import join
 from glob import glob
 import pandas as pd
 
-configfile: 'config_3T.yml'
+configfile: 'cfg/config_3T.yml'
 
 #load participants.tsv file (list of HCP subject IDs),
 df = pd.read_table(config['participants_tsv'])
 subjects = df.participant_id.to_list() 
 
+#parameters for input/output
 run = config['run']
 vox_res = config['voxel_size']
 vtx_res = config['vertex_nr'] 
@@ -31,7 +32,7 @@ rule all:
 #         for pkg,file in zip(input.packages, params.files_in_pkg):
 #             shell('unzip {pkg} {file} -d {params.out_dir}')
 
-# rule here to make custom subcort atlas
+# Rule here to make custom subcort atlas, we give our 'seed' label 16 (brainstem) to make it work with workbench
 rule merge_roi:
     input:
         atlas = config['subcort_atlas'],
@@ -75,7 +76,7 @@ rule prepare_subcort:
     output:
         out = expand('funcparc/{{subject}}/input/{r}_AtlasSubcortical.nii.gz',r=run)
     params:
-        sigma = 1.6,
+        sigma = config['sigma'],
         temp = 'funcparc/{subject}/tmp'
     group: 'preprocessing'
     singularity: config['singularity_connectomewb']
@@ -145,6 +146,19 @@ rule create_dtseries:
 #         mem_mb = 32000
 #     shell:
 #         'ciftify_clean_img --output-file={output} --detrend --standardize --tr=0.720 --verbose {input.dtseries} &> {log}'
+
+# As used in https://rdcu.be/b7N8K, requires matlab. Does detrending and demeaning too
+rule wishart_filter:
+    input: rules.create_dtseries.output
+    output: expand('funcparc/{{subject}}/input_wishart/{r}.{nv}_fs_LR.dtseries.nii',nv=vtx_res,r=run)
+    params:
+        script = 'scripts/wishart_filter.m'
+    group: 'preprocessing'
+    threads: 8
+    resources:
+        mem_mb = 32000
+    shell:
+        "bash scripts/wishart_filter.sh {params.script} {input} {output}"
 
 rule parcellate_tseries:
     input:
